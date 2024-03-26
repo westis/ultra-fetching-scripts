@@ -1,19 +1,32 @@
 // file path: node-backend/mongodbClient.js
 import { MongoClient } from "mongodb";
+import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 
-// Replace the uri string with your MongoDB deployment's connection string.
-const uri = process.env.MONGODB_URI;
+const secretClient = new SecretManagerServiceClient();
 
-const client = new MongoClient(uri);
+async function getMongoDBUri() {
+  const [version] = await secretClient.accessSecretVersion({
+    name: `projects/ultralive-395814/secrets/MONGODB_URI/versions/latest`,
+  });
+  return version.payload.data.toString("utf8");
+}
+
+let cachedClient = null;
 
 async function connectToMongoDB() {
-  try {
-    await client.connect();
-    console.log("Connected to MongoDB");
-    return client;
-  } catch (e) {
-    console.error("Could not connect to MongoDB", e);
+  if (
+    cachedClient &&
+    cachedClient.topology &&
+    cachedClient.topology.isConnected()
+  ) {
+    // Check if the topology is connected
+    return cachedClient;
   }
+
+  const uri = await getMongoDBUri();
+  cachedClient = new MongoClient(uri);
+  await cachedClient.connect();
+  return cachedClient;
 }
 
 export { connectToMongoDB };

@@ -8,7 +8,6 @@ import {
   kmToMiles,
   calculateEventEndTime,
 } from "./helperFunctions.js";
-import fs from "fs";
 import { connectToMongoDB } from "./mongodbClient.js";
 
 // Mocked event details and annotations for demonstration
@@ -118,31 +117,34 @@ function transformData(originalData) {
   };
 }
 
-const intervalDuration = 120000; // 2 minutes in milliseconds
-
-const intervalId = setInterval(run, intervalDuration);
-
-async function run() {
+export async function run(req, res) {
   const now = new Date();
-  if (now > eventEnd) {
-    console.log("The event has ended. Stopping the script.");
-    clearInterval(intervalId); // Stop the interval
+  if (now < new Date(eventDetails.eventStartDateTime) || now > eventEnd) {
+    console.log("Outside of event time. Function will not proceed.");
+    res.status(200).send("Outside of event time. Function will not proceed.");
     return;
   }
 
-  const originalData = await fetchData();
-  if (!originalData) {
-    console.log("No data fetched.");
-    return;
+  try {
+    const originalData = await fetchData();
+    if (!originalData) {
+      console.log("No data fetched.");
+      res.status(500).send("No data fetched.");
+      return;
+    }
+
+    const transformedParticipantData = transformData(originalData);
+    const finalJson = {
+      ...eventDetails,
+      participants: [transformedParticipantData],
+    };
+
+    await updateMongoDBWithData(finalJson);
+    res.status(200).send("Data fetched and stored successfully.");
+  } catch (error) {
+    console.error("Failed to execute run function:", error);
+    res.status(500).send("Server error.");
   }
-
-  const transformedParticipantData = transformData(originalData);
-  const finalJson = {
-    ...eventDetails,
-    participants: [transformedParticipantData],
-  };
-
-  await updateMongoDBWithData(finalJson);
 }
 
 async function updateMongoDBWithData(finalJson) {
@@ -172,6 +174,3 @@ async function updateMongoDBWithData(finalJson) {
     await client.close();
   }
 }
-
-// Execute run initially when script is started
-run().catch(console.error);
