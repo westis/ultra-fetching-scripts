@@ -29,3 +29,14 @@ export function secondsToHMS(seconds) {
     .padStart(2, "0");
   return `${h}:${m}:${s}`;
 }
+
+export function calculateEventEndTime(startDateTime, duration) {
+  const [hours, minutes, seconds] = duration.split(":").map(Number);
+  const startTime = new Date(startDateTime);
+  return new Date(
+    startTime.getTime() +
+      hours * 3600 * 1000 +
+      minutes * 60 * 1000 +
+      seconds * 1000
+  );
+}

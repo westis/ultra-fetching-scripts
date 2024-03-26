@@ -6,7 +6,7 @@ import {
   extractKmFromString,
   secondsToHMS,
   kmToMiles,
-  calculatePace,
+  calculateEventEndTime,
 } from "./helperFunctions.js";
 import fs from "fs";
 import { connectToMongoDB } from "./mongodbClient.js";
@@ -24,6 +24,11 @@ const eventDetails = {
     // Add more annotations as needed
   ],
 };
+
+const eventEnd = calculateEventEndTime(
+  eventDetails.eventStartDateTime,
+  eventDetails.eventDuration
+);
 
 // Fetch data from endpoint
 async function fetchData() {
@@ -113,7 +118,18 @@ function transformData(originalData) {
   };
 }
 
+const intervalDuration = 120000; // 2 minutes in milliseconds
+
+const intervalId = setInterval(run, intervalDuration);
+
 async function run() {
+  const now = new Date();
+  if (now > eventEnd) {
+    console.log("The event has ended. Stopping the script.");
+    clearInterval(intervalId); // Stop the interval
+    return;
+  }
+
   const originalData = await fetchData();
   if (!originalData) {
     console.log("No data fetched.");
@@ -121,13 +137,11 @@ async function run() {
   }
 
   const transformedParticipantData = transformData(originalData);
-
   const finalJson = {
     ...eventDetails,
     participants: [transformedParticipantData],
   };
 
-  // Updating the MongoDB database with the generated JSON data
   await updateMongoDBWithData(finalJson);
 }
 
